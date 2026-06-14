@@ -1,0 +1,218 @@
+"""
+登录对话框
+"""
+
+from PyQt6.QtWidgets import (
+    QDialog, QVBoxLayout, QHBoxLayout, QLabel,
+    QLineEdit, QPushButton, QMessageBox, QGroupBox,
+    QFormLayout, QCheckBox, QProgressBar
+)
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtGui import QFont, QIcon
+import logging
+
+from core import ETS100ApiClient, AuthManager, EcardAccount
+
+logger = logging.getLogger(__name__)
+
+
+class LoginWorker(QThread):
+    """登录工作线程"""
+    login_success = pyqtSignal(dict)
+    login_failed = pyqtSignal(str)
+    login_progress = pyqtSignal(str, int)
+
+    def __init__(self, phone: str, password: str, device_code: str):
+        super().__init__()
+        self.phone = phone
+        self.password = password
+        self.device_code = device_code
+        self.client = ETS100ApiClient()
+
+    def run(self):
+        try:
+            self.login_progress.emit("正在登录...", 20)
+            
+            resp = self.client.login(self.phone, self.password, self.device_code)
+            code = resp.get("code", -1)
+            
+            if code == 30014:
+                self.login_progress.emit("设备需要绑定，正在绑定...", 40)
+                resp = self.client.bind_device(self.phone, self.password, self.device_code)
+                code = resp.get("code", -1)
+            
+            if code != 0 and code != -1:
+                msg = resp.get("msg", "登录失败")
+                self.login_failed.emit(msg)
+                return
+
+            token = resp.get("body", {}).get("token", "")
+            if not token:
+                self.login_failed.emit("未获取到 Token")
+                return
+
+            self.login_progress.emit("获取账户信息...", 60)
+            
+            ecard_resp = self.client.get_ecard_list(token)
+            body = ecard_resp.get("body", {})
+            
+            selected_account = None
+            for key, account_data in body.items():
+                if not account_data:
+                    continue
+                account = EcardAccount(key, account_data)
+                if account.is_valid:
+                    selected_account = account
+                    break
+            
+            if not selected_account and body:
+                first_key = next(iter(body.keys()))
+                selected_account = EcardAccount(first_key, body[first_key])
+
+            if not selected_account or not selected_account.parent_id:
+                self.login_failed.emit("未找到有效的账户信息")
+                return
+
+            self.login_progress.emit("登录成功！", 100)
+            
+            result = {
+                "phone": self.phone,
+                "password": self.password,
+                "token": token,
+                "parent_account_id": selected_account.parent_id,
+                "account_name": selected_account.name
+            }
+            
+            self.login_success.emit(result)
+
+        except Exception as e:
+            logger.error(f"登录异常: {e}")
+            self.login_failed.emit(f"登录异常: {str(e)}")
+
+
+class LoginDialog(QDialog):
+    """登录对话框"""
+
+    def __init__(self, auth_manager: AuthManager, parent=None):
+        super().__init__(parent)
+        self.auth_manager = auth_manager
+        self.setWindowTitle("登录 - Fuck ETS100")
+        self.setMinimumSize(400, 350)
+        self._init_ui()
+        self._load_saved_info()
+
+    def _init_ui(self):
+        layout = QVBoxLayout()
+        layout.setContentsMargins(30, 30, 30, 30)
+        layout.setSpacing(20)
+
+        # 标题
+        title_label = QLabel("Fuck ETS100")
+        title_font = QFont()
+        title_font.setPointSize(24)
+        title_font.setBold(True)
+        title_label.setFont(title_font)
+        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title_label)
+
+        subtitle = QLabel("Windows 版本")
+        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(subtitle)
+
+        # 登录表单
+        form_group = QGroupBox("登录信息")
+        form_layout = QFormLayout()
+
+        self.phone_input = QLineEdit()
+        self.phone_input.setPlaceholderText("请输入手机号")
+        form_layout.addRow("手机号:", self.phone_input)
+
+        self.password_input = QLineEdit()
+        self.password_input.setPlaceholderText("请输入密码")
+        self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        form_layout.addRow("密  码:", self.password_input)
+
+        self.save_password_cb = QCheckBox("记住密码")
+        form_layout.addRow("", self.save_password_cb)
+
+        form_group.setLayout(form_layout)
+        layout.addWidget(form_group)
+
+        # 进度条
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setVisible(False)
+        layout.addWidget(self.progress_bar)
+
+        # 状态标签
+        self.status_label = QLabel("")
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.status_label)
+
+        # 按钮
+        btn_layout = QHBoxLayout()
+        
+        self.login_btn = QPushButton("登录")
+        self.login_btn.setMinimumHeight(40)
+        self.login_btn.clicked.connect(self._on_login_clicked)
+        btn_layout.addWidget(self.login_btn)
+
+        self.cancel_btn = QPushButton("取消")
+        self.cancel_btn.setMinimumHeight(40)
+        self.cancel_btn.clicked.connect(self.reject)
+        btn_layout.addWidget(self.cancel_btn)
+
+        layout.addLayout(btn_layout)
+        self.setLayout(layout)
+
+    def _load_saved_info(self):
+        """加载保存的登录信息"""
+        info = self.auth_manager.get_login_info()
+        if info:
+            self.phone_input.setText(info.get("phone", ""))
+            if info.get("password"):
+                self.password_input.setText(info.get("password"))
+                self.save_password_cb.setChecked(True)
+
+    def _on_login_clicked(self):
+        """登录按钮点击"""
+        phone = self.phone_input.text().strip()
+        password = self.password_input.text().strip()
+
+        if not phone or not password:
+            QMessageBox.warning(self, "提示", "请输入手机号和密码")
+            return
+
+        device_code = self.auth_manager.get_device_code()
+
+        self.login_btn.setEnabled(False)
+        self.progress_bar.setVisible(True)
+        self.status_label.setText("")
+
+        self.worker = LoginWorker(phone, password, device_code)
+        self.worker.login_success.connect(self._on_login_success)
+        self.worker.login_failed.connect(self._on_login_failed)
+        self.worker.login_progress.connect(self._on_login_progress)
+        self.worker.start()
+
+    def _on_login_success(self, result: dict):
+        """登录成功"""
+        phone = result["phone"]
+        password = result["password"] if self.save_password_cb.isChecked() else None
+        token = result["token"]
+        parent_id = result["parent_account_id"]
+
+        self.auth_manager.save_login_info(phone, token, parent_id, password)
+        
+        QMessageBox.information(self, "成功", f"登录成功！\n账户: {result.get('account_name', phone)}")
+        self.accept()
+
+    def _on_login_failed(self, error_msg: str):
+        """登录失败"""
+        self.login_btn.setEnabled(True)
+        self.progress_bar.setVisible(False)
+        QMessageBox.critical(self, "错误", error_msg)
+
+    def _on_login_progress(self, message: str, value: int):
+        """登录进度"""
+        self.status_label.setText(message)
+        self.progress_bar.setValue(value)
