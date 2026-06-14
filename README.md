@@ -1,5 +1,7 @@
 # Fuck ETS100 - Windows 版本
 
+感谢 https://github.com/laststudio/Fuck_ets100 提供的原始代码。
+
 专门为 ETS100 (e听说) 用户打造的答案提取工具 - Windows 桌面版本
 
 ![License: GPL-3.0](https://img.shields.io/badge/License-GPL%203.0-blue.svg)
