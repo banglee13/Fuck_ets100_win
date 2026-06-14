@@ -34,12 +34,7 @@ python run.py
 #### 方式 2：使用批处理脚本
 双击 `启动.bat`
 
-#### 方式 3：使用 PowerShell
-```powershell
-powershell -ExecutionPolicy Bypass -File 启动.ps1
-```
-
-#### 方式 4：手动运行
+#### 方式 3：手动运行
 ```bash
 cd Fuck_ets_win
 pip install -r requirements.txt
