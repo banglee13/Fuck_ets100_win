@@ -398,7 +398,23 @@ class MainWindow(QMainWindow):
         """显示答案"""
         self.right_label.setText(name)
         
-        html = f"<h2>{name}</h2>"
+        # 注入美化用的 CSS
+        html = f"""
+        <style>
+            body {{ font-family: "Microsoft YaHei", sans-serif; color: #1F2937; line-height: 1.6; }}
+            h2 {{ color: #0B65D8; border-bottom: 2px solid #E5E7EB; padding-bottom: 8px; }}
+            h3 {{ color: #374151; margin-top: 24px; background-color: #F3F4F6; padding: 8px 12px; border-radius: 6px; }}
+            .question-card {{ background-color: #FFFFFF; border: 1px solid #E5E7EB; border-radius: 8px; padding: 16px; margin-bottom: 16px; }}
+            .question-title {{ font-weight: bold; font-size: 15px; margin-bottom: 8px; color: #111827; }}
+            ul {{ list-style-type: none; padding-left: 0; margin-top: 8px; }}
+            li {{ padding: 6px 8px; margin-bottom: 4px; border-radius: 4px; background-color: #F9FAFB; }}
+            .correct-option {{ color: #059669; font-weight: bold; background-color: #D1FAE5; }}
+            .answer-box {{ margin-top: 12px; padding: 10px; background-color: #EFF6FF; border-left: 4px solid #0B65D8; border-radius: 4px; }}
+            .answer-label {{ font-weight: bold; color: #1E3A8A; }}
+            hr {{ border: none; }}
+        </style>
+        """
+        html += f"<h2>{name}</h2>"
         
         for section in sections:
             group_name = section.get("group_name", section.get("type_name", "未知"))
@@ -406,40 +422,46 @@ class MainWindow(QMainWindow):
             
             questions = section.get("questions", [])
             for q in questions:
+                html += "<div class='question-card'>"
                 if "options" in q:
                     # 选择题
                     q_num = q.get('number', q.get('index', 0) + 1)
-                    html += f"<p><b>{q_num}. {q['question']}</b></p>"
+                    html += f"<div class='question-title'>{q_num}. {q['question']}</div>"
                     html += "<ul>"
                     for opt in q["options"]:
                         is_correct = opt["label"] == q["answer"]
-                        style = "color: green; font-weight: bold;" if is_correct else ""
-                        html += f"<li style='{style}'>{opt['label']}. {opt['text']}</li>"
-                    html += f"</ul><p><b>答案: {q['answer']}</b></p>"
+                        li_class = "correct-option" if is_correct else ""
+                        html += f"<li class='{li_class}'>{opt['label']}. {opt['text']}</li>"
+                    html += f"</ul><div class='answer-box'><span class='answer-label'>答案:</span> {q['answer']}</div>"
                 elif "answer" in q:
                     # 填空题
                     q_num = q.get('number', q.get('index', 0) + 1)
-                    html += f"<p><b>{q_num}. </b> 答案: {q['answer']}</p>"
+                    html += f"<div class='question-title'>{q_num}. 填空题</div>"
+                    html += f"<div class='answer-box'><span class='answer-label'>答案:</span> {q['answer']}</div>"
                 elif "topic" in q:
                     # 信息转述
-                    html += f"<p><b>主题:</b> {q['topic']}</p>"
+                    html += f"<div class='question-title'>主题: {q['topic']}</div>"
                     if q.get("original_text"):
-                        html += f"<p><b>原文:</b></p><p>{q['original_text'].replace(chr(10), '<br>')}</p>"
+                        html += f"<div><b>原文:</b><br/>{q['original_text'].replace(chr(10), '<br>')}</div>"
                     if q.get("answers"):
-                        html += "<p><b>参考答案:</b></p>"
+                        html += "<div class='answer-box'><span class='answer-label'>参考答案:</span><br/>"
                         for ans in q["answers"]:
-                            html += f"<p>{ans.replace(chr(10), '<br>')}</p>"
+                            html += f"<div>{ans.replace(chr(10), '<br>')}</div>"
+                        html += "</div>"
                 elif "type" in q and q["type"] == "read":
                     # 模仿朗读
-                    html += f"<p><b>模仿朗读原文:</b></p><p>{q.get('original_text', '').replace(chr(10), '<br>')}</p>"
+                    html += f"<div class='question-title'>模仿朗读</div>"
+                    html += f"<div class='answer-box'><span class='answer-label'>原文:</span><br/>{q.get('original_text', '').replace(chr(10), '<br>')}</div>"
                 else:
                     # 问答题
-                    html += f"<p><b>{q.get('index', 0) + 1}. {q['question']}</b></p>"
+                    q_num = q.get('index', 0) + 1
+                    html += f"<div class='question-title'>{q_num}. {q['question']}</div>"
                     if q.get("answers"):
-                        html += "<p><b>参考答案:</b></p>"
+                        html += "<div class='answer-box'><span class='answer-label'>参考答案:</span><br/>"
                         for ans in q["answers"]:
-                            html += f"<p>{ans.replace(chr(10), '<br>')}</p>"
-                html += "<hr>"
+                            html += f"<div>{ans.replace(chr(10), '<br>')}</div>"
+                        html += "</div>"
+                html += "</div>"
         
         self.answer_text.setHtml(html)
 

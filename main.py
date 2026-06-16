@@ -20,6 +20,7 @@ logging.basicConfig(
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from ui import MainWindow
+from ui.styles import MATERIAL_STYLE
 
 
 def main():
@@ -30,9 +31,10 @@ def main():
     app.setOrganizationName("FuckETS100")
     app.setApplicationVersion("1.0.0")
     
-    # 设置默认字体
-    font = QFont("Microsoft YaHei", 9)
+    # 设置默认字体和全局样式
+    font = QFont("Microsoft YaHei", 10)
     app.setFont(font)
+    app.setStyleSheet(MATERIAL_STYLE)
     
     # 创建并显示主窗口
     window = MainWindow()
