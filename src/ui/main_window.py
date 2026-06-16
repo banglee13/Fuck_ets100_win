@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (
     QLabel, QPushButton, QTreeWidget, QTreeWidgetItem,
     QSplitter, QTextEdit, QMessageBox, QProgressBar,
     QFileDialog, QToolBar, QStatusBar, QMenu, QDialog,
-    QApplication
+    QApplication, QComboBox
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QUrl, QTimer
 from PyQt6.QtGui import QIcon, QFont, QDesktopServices
@@ -29,9 +29,10 @@ class LoadHomeworkWorker(QThread):
     load_failed = pyqtSignal(str)
     load_progress = pyqtSignal(str)
 
-    def __init__(self, auth_manager: AuthManager):
+    def __init__(self, auth_manager: AuthManager, status: str = "1"):
         super().__init__()
         self.auth_manager = auth_manager
+        self.status = status
         self.client = ETS100ApiClient()
 
     def run(self):
@@ -49,7 +50,7 @@ class LoadHomeworkWorker(QThread):
                 return
 
             self.load_progress.emit("获取作业列表...")
-            hw_resp = self.client.get_homework_list(token, parent_id)
+            hw_resp = self.client.get_homework_list(token, parent_id, self.status)
             
             # 如果请求失败（例如 token 过期）
             code = hw_resp.get("code", -1)
@@ -78,7 +79,7 @@ class LoadHomeworkWorker(QThread):
                 self.auth_manager.save_login_info(phone, token, parent_id, password)
                 
                 self.load_progress.emit("获取作业列表...")
-                hw_resp = self.client.get_homework_list(token, parent_id)
+                hw_resp = self.client.get_homework_list(token, parent_id, self.status)
                 if hw_resp.get("code", -1) != 0:
                     self.load_failed.emit(hw_resp.get("msg", "获取作业列表失败"))
                     return
@@ -233,7 +234,18 @@ class MainWindow(QMainWindow):
 
         left_label = QLabel("作业列表")
         left_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        left_layout.addWidget(left_label)
+
+        self.status_combo = QComboBox()
+        self.status_combo.addItem("当前作业", "1")
+        self.status_combo.addItem("历史作业", "2")
+        self.status_combo.currentIndexChanged.connect(self._load_homework)
+
+        header_layout = QHBoxLayout()
+        header_layout.addWidget(left_label)
+        header_layout.addStretch()
+        header_layout.addWidget(self.status_combo)
+
+        left_layout.addLayout(header_layout)
 
         self.homework_tree = QTreeWidget()
         self.homework_tree.setHeaderLabels(["作业名称"])
@@ -297,12 +309,14 @@ class MainWindow(QMainWindow):
             return
 
         self.refresh_btn.setEnabled(False)
+        self.status_combo.setEnabled(False)
         self.progress_bar.setVisible(True)
         self.progress_bar.setRange(0, 0)
         self.status_label_left.setText("正在加载...")
         self.homework_tree.clear()
 
-        self.worker = LoadHomeworkWorker(self.auth_manager)
+        status = self.status_combo.currentData()
+        self.worker = LoadHomeworkWorker(self.auth_manager, status)
         self.worker.load_success.connect(self._on_homework_loaded)
         self.worker.load_failed.connect(self._on_homework_load_failed)
         self.worker.load_progress.connect(self._on_load_progress)
@@ -319,6 +333,7 @@ class MainWindow(QMainWindow):
             self.homework_tree.addTopLevelItem(item)
 
         self.refresh_btn.setEnabled(True)
+        self.status_combo.setEnabled(True)
         self.progress_bar.setVisible(False)
         self.status_label_left.setText(f"共 {len(self.homework_list)} 份作业")
         self.statusBar.showMessage("加载成功")
@@ -326,6 +341,7 @@ class MainWindow(QMainWindow):
     def _on_homework_load_failed(self, error: str):
         """作业加载失败"""
         self.refresh_btn.setEnabled(True)
+        self.status_combo.setEnabled(True)
         self.progress_bar.setVisible(False)
         self.status_label_left.setText("加载失败")
         QMessageBox.critical(self, "错误", error)
