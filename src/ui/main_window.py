@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (
     QLabel, QPushButton, QTreeWidget, QTreeWidgetItem,
     QSplitter, QTextEdit, QMessageBox, QProgressBar,
     QFileDialog, QToolBar, QStatusBar, QMenu, QDialog,
-    QApplication, QComboBox
+    QApplication, QComboBox, QLineEdit
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QUrl, QTimer
 from PyQt6.QtGui import QIcon, QFont, QDesktopServices
@@ -197,24 +197,29 @@ class MainWindow(QMainWindow):
         self.addToolBar(toolbar)
 
         self.refresh_btn = QPushButton("刷新作业")
+        # 使用简洁的 emoji 图标以增强视觉识别
+        self.refresh_btn.setText("🔄 刷新")
         self.refresh_btn.clicked.connect(self._load_homework)
         toolbar.addWidget(self.refresh_btn)
 
         toolbar.addSeparator()
 
         self.logout_btn = QPushButton("退出登录")
+        self.logout_btn.setText("🔒 退出")
         self.logout_btn.clicked.connect(self._logout)
         toolbar.addWidget(self.logout_btn)
 
         toolbar.addSeparator()
 
         self.open_cache_btn = QPushButton("打开缓存目录")
+        self.open_cache_btn.setText("📁 缓存")
         self.open_cache_btn.clicked.connect(self._open_cache_dir)
         toolbar.addWidget(self.open_cache_btn)
 
         toolbar.addSeparator()
 
         self.export_btn = QPushButton("导出答案")
+        self.export_btn.setText("📤 导出")
         self.export_btn.clicked.connect(self._export_answers)
         toolbar.addWidget(self.export_btn)
 
@@ -229,6 +234,7 @@ class MainWindow(QMainWindow):
 
         # 左侧 - 作业列表
         left_panel = QWidget()
+        left_panel.setProperty("card", "true")
         left_layout = QVBoxLayout(left_panel)
         left_layout.setContentsMargins(0, 0, 0, 0)
 
@@ -247,9 +253,22 @@ class MainWindow(QMainWindow):
 
         left_layout.addLayout(header_layout)
 
+        # 搜索框：用于快速筛选作业列表（类似 Android 列表的即时过滤）
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("搜索作业...")
+        try:
+            self.search_input.setClearButtonEnabled(True)
+        except Exception:
+            pass
+        self.search_input.textChanged.connect(self._filter_homework)
+        left_layout.addWidget(self.search_input)
+
         self.homework_tree = QTreeWidget()
         self.homework_tree.setHeaderLabels(["作业名称"])
         self.homework_tree.itemClicked.connect(self._on_homework_clicked)
+        # 更友好的交互体验
+        self.homework_tree.setAlternatingRowColors(True)
+        self.homework_tree.setIndentation(12)
         left_layout.addWidget(self.homework_tree)
 
         self.progress_bar = QProgressBar()
@@ -263,6 +282,7 @@ class MainWindow(QMainWindow):
 
         # 右侧 - 答案显示
         right_panel = QWidget()
+        right_panel.setProperty("card", "true")
         right_layout = QVBoxLayout(right_panel)
         right_layout.setContentsMargins(0, 0, 0, 0)
 
@@ -337,6 +357,18 @@ class MainWindow(QMainWindow):
         self.progress_bar.setVisible(False)
         self.status_label_left.setText(f"共 {len(self.homework_list)} 份作业")
         self.statusBar.showMessage("加载成功")
+
+    def _filter_homework(self, text: str):
+        """根据搜索文本过滤左侧作业列表"""
+        if text is None:
+            text = ""
+        needle = text.strip().lower()
+        count = self.homework_tree.topLevelItemCount()
+        for i in range(count):
+            item = self.homework_tree.topLevelItem(i)
+            name = (item.text(0) or "").lower()
+            # 隐藏不匹配的项
+            item.setHidden(bool(needle) and (needle not in name))
 
     def _on_homework_load_failed(self, error: str):
         """作业加载失败"""

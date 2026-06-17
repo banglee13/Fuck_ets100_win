@@ -217,4 +217,38 @@ QCheckBox::indicator:checked {
 QCheckBox::indicator:hover {
     border-color: #0B65D8;
 }
+/* 卡片样式：用于分组或特殊容器 */
+QWidget[card="true"] {
+    background-color: #FFFFFF;
+    border: 1px solid rgba(14,30,37,0.06);
+    border-radius: 12px;
+    padding: 12px;
+}
+
+/* 更圆润的工具栏视觉 */
+QToolBar {
+    border-radius: 10px;
+    padding: 10px;
+}
+
+/* 滚动条样式 */
+QScrollBar:vertical {
+    background: transparent;
+    width: 10px;
+    margin: 0px 0px 0px 0px;
+}
+QScrollBar::handle:vertical {
+    background: #D1D5DB;
+    min-height: 20px;
+    border-radius: 6px;
+}
+QScrollBar::handle:vertical:hover {
+    background: #9CA3AF;
+}
+QScrollBar::add-line, QScrollBar::sub-line { height: 0px; }
+
+/* 对话框标题更醒目 */
+QDialog QLabel {
+    font-size: 16px;
+}
 """
