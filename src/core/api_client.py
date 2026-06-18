@@ -149,9 +149,8 @@ class ETS100ApiClient:
                 "suc_device_name": "Other",
                 "os_type": "android",
                 "system": "4",
-                "global_client_version": "5.4.5",
-                "sign_response": 1,
-                "version": "3"
+                "global_client_version": "",
+                "sign_response": 1
             }
         }
         

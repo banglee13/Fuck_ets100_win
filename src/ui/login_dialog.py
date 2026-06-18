@@ -13,6 +13,7 @@ import logging
 
 from core import ETS100ApiClient, AuthManager, EcardAccount
 from ui.verification_dialog_v2 import VerificationDialog
+from ui.theme_manager import ThemeManager
 
 logger = logging.getLogger(__name__)
 
@@ -154,12 +155,27 @@ class LoginDialog(QDialog):
     def __init__(self, auth_manager: AuthManager, parent=None):
         super().__init__(parent)
         self.auth_manager = auth_manager
+        self.theme_mgr = ThemeManager()
         self.setWindowTitle("登录 - Fuck ETS100")
-        self.setMinimumSize(400, 350)
+        self.setMinimumSize(420, 380)
         self._init_ui()
         self._load_saved_info()
 
+    def _is_dark(self):
+        return self.theme_mgr.is_dark
+
     def _init_ui(self):
+        is_dark = self._is_dark()
+        
+        # 主题色
+        bg = "#1E1E1E" if is_dark else "#F8F9FA"
+        title_color = "#FFFFFF" if is_dark else "#1E1E1E"
+        sub_color = "#CBC4D2" if is_dark else "#6B7280"
+        btn_bg = "#1E2530" if is_dark else "#FFFFFF"
+        btn_border = "#494551" if is_dark else "#D1D5DB"
+        btn_hover = "#253650" if is_dark else "#EFF6FF"
+        status_color = "#CBC4D2" if is_dark else "#6B7280"
+        
         layout = QVBoxLayout()
         layout.setContentsMargins(30, 30, 30, 30)
         layout.setSpacing(20)
@@ -171,10 +187,12 @@ class LoginDialog(QDialog):
         title_font.setBold(True)
         title_label.setFont(title_font)
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title_label.setStyleSheet(f"color: {title_color}; background: transparent;")
         layout.addWidget(title_label)
 
         subtitle = QLabel("Windows 版本")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        subtitle.setStyleSheet(f"color: {sub_color}; background: transparent;")
         layout.addWidget(subtitle)
 
         # 登录表单
@@ -204,6 +222,7 @@ class LoginDialog(QDialog):
         # 状态标签
         self.status_label = QLabel("")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.status_label.setStyleSheet(f"color: {status_color}; background: transparent;")
         layout.addWidget(self.status_label)
 
         # 按钮
@@ -211,11 +230,33 @@ class LoginDialog(QDialog):
         
         self.login_btn = QPushButton("登录")
         self.login_btn.setMinimumHeight(40)
+        self.login_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #0B65D8; color: #FFFFFF; font-weight: bold;
+                border: none; border-radius: 20px; padding: 8px 24px; font-size: 14px;
+            }}
+            QPushButton:hover {{ background-color: #1D4ED8; }}
+            QPushButton:pressed {{ background-color: #1E3A8A; }}
+            QPushButton:disabled {{
+                background-color: {'#2D2D2D' if is_dark else '#E5E7EB'};
+                color: {'#494551' if is_dark else '#9CA3AF'};
+            }}
+        """)
         self.login_btn.clicked.connect(self._on_login_clicked)
         btn_layout.addWidget(self.login_btn)
 
         self.cancel_btn = QPushButton("取消")
         self.cancel_btn.setMinimumHeight(40)
+        self.cancel_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: transparent;
+                color: {title_color};
+                border: 1px solid {btn_border};
+                border-radius: 20px;
+                padding: 8px 24px; font-size: 14px;
+            }}
+            QPushButton:hover {{ background-color: {btn_hover}; border-color: #0B65D8; }}
+        """)
         self.cancel_btn.clicked.connect(self.reject)
         btn_layout.addWidget(self.cancel_btn)
 

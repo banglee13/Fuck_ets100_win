@@ -1,71 +1,93 @@
 """
-验证对话框 - 集成畅言网页验证页（简化版）
+验证对话框 - 集成畅言网页验证页
 当密码错误次数过多时，需要通过此对话框完成人工验证
+桌面端版本：使用桌面 UA、大尺寸窗口
 """
 
 import json
 import logging
 from PyQt6.QtWidgets import (
-    QDialog, QVBoxLayout, QLabel, QPushButton, QMessageBox
+    QDialog, QVBoxLayout, QLabel, QPushButton, QMessageBox, QHBoxLayout
 )
 from PyQt6.QtCore import Qt, QUrl, QTimer
-from PyQt6.QtGui import QFont
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEngineSettings, QWebEngineScript
 
-MOBILE_USER_AGENT = (
-    "Mozilla/5.0 (Linux; Android 16; PLC110 Build/BP2A.250605.015) "
-    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.7778.120 Mobile Safari/537.36"
+# 桌面端 User-Agent（非手机版）
+DESKTOP_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/148.0.0.0 Safari/537.36"
 )
 
 logger = logging.getLogger(__name__)
 
 
 class VerificationDialog(QDialog):
-    """验证对话框 - 使用 WebView 打开畅言验证页"""
+    """验证对话框 - 使用 WebView 打开畅言验证页（桌面端适配）"""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("身份验证 - ETS100")
-        self.setMinimumSize(500, 700)
+        self.setMinimumSize(850, 680)
+        self.resize(900, 720)
         self.verification_data = None
         self._setup_ui()
 
     def _setup_ui(self):
         """初始化 UI"""
-        layout = QVBoxLayout()
-        layout.setContentsMargins(10, 10, 10, 10)
+        self.setStyleSheet("""
+            QDialog { background-color: #1E1E1E; }
+            QLabel { color: #E5E1E7; background: transparent; }
+            QLabel#title { font-size: 16px; font-weight: bold; color: #FFFFFF; }
+            QLabel#desc { color: #CBC4D2; font-size: 13px; }
+            QPushButton {
+                background-color: #1E2530; color: #E5E1E7;
+                border: 1px solid #494551; border-radius: 20px;
+                padding: 8px 20px; font-size: 13px;
+            }
+            QPushButton:hover { background-color: #253650; border-color: #0B65D8; }
+        """)
 
-        # 标题
+        layout = QVBoxLayout()
+        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(12)
+
+        # 标题栏
+        header = QHBoxLayout()
         title = QLabel("请完成身份验证")
-        title.setFont(QFont("Arial", 12, QFont.Weight.Bold))
-        layout.addWidget(title)
+        title.setObjectName("title")
+        header.addWidget(title)
+        header.addStretch()
+        layout.addLayout(header)
 
         # 说明
         desc = QLabel(
-            "由于登录尝试次数过多，系统要求您完成身份验证后才能继续。\n"
+            "由于登录尝试次数过多，系统要求您完成身份验证后才能继续。"
             "请在下方页面中完成验证，验证完成后窗口会自动关闭。"
         )
+        desc.setObjectName("desc")
         desc.setWordWrap(True)
         layout.addWidget(desc)
 
-        # WebView
+        # WebView - 桌面端渲染
         self.webview = QWebEngineView()
-        
-        # 配置 WebView
-        self.webview.page().profile().setHttpUserAgent(MOBILE_USER_AGENT)
+
+        # 配置 WebView - 使用桌面 UA
+        self.webview.page().profile().setHttpUserAgent(DESKTOP_USER_AGENT)
         settings = self.webview.settings()
         settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptEnabled, True)
         settings.setAttribute(QWebEngineSettings.WebAttribute.LocalStorageEnabled, True)
-        
+        settings.setAttribute(QWebEngineSettings.WebAttribute.WebGLEnabled, False)
+        settings.setAttribute(QWebEngineSettings.WebAttribute.AutoLoadImages, True)
+
         # 注入脚本监听验证完成
         self._inject_verification_script()
-        
-        # 监听页面加载和 URL 变化
+
+        # 监听页面加载
         self.webview.page().loadFinished.connect(self._on_page_load_finished)
-        self.webview.urlChanged.connect(self._on_url_changed)
-        
-        # 加载验证页
+
+        # 加载验证页（与 Android 版相同 URL，桌面 UA 会自动适配布局）
         verification_url = (
             "https://pass.changyan.com/login?"
             "nextpage=aHR0cHM6Ly93d3cuZXRzMTAwLmNvbS9sb2dpbkNoZWNrLmh0bWw%3D&"
@@ -73,24 +95,28 @@ class VerificationDialog(QDialog):
             "from=ew&"
             "appId=pass6port18"
         )
-        
-        self.webview.load(QUrl(verification_url))
-        layout.addWidget(self.webview)
 
-        # 按钮
+        self.webview.load(QUrl(verification_url))
+        layout.addWidget(self.webview, 1)
+
+        # 底部按钮
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
         self.close_btn = QPushButton("关闭")
         self.close_btn.clicked.connect(self.reject)
-        layout.addWidget(self.close_btn)
+        self.close_btn.setMinimumWidth(100)
+        btn_layout.addWidget(self.close_btn)
+        layout.addLayout(btn_layout)
 
         self.setLayout(layout)
-        
-        # 定时器：检查是否有验证数据（备选方案）
+
+        # 定时器：轮询检查验证数据
         self.check_timer = QTimer()
         self.check_timer.timeout.connect(self._check_verification)
         self.check_timer.start(500)
 
     def _inject_verification_script(self):
-        """注入验证脚本"""
+        """注入验证脚本 - 拦截 checkLogin 响应"""
         script_code = """
         (function() {
             if (window.__feEtsVerificationInstalled) return;
@@ -154,7 +180,7 @@ class VerificationDialog(QDialog):
             }, 500);
         })();
         """
-        
+
         script = QWebEngineScript()
         script.setSourceCode(script_code)
         script.setInjectionPoint(QWebEngineScript.InjectionPoint.DocumentReady)
@@ -166,14 +192,8 @@ class VerificationDialog(QDialog):
         if success:
             logger.debug("验证页面加载成功")
 
-    def _on_url_changed(self, url):
-        """URL 变化时检查"""
-        url_str = url.toString()
-        logger.debug(f"URL 变化: {url_str[:100]}")
-
     def _check_verification(self):
         """定时检查验证数据"""
-        # 从 WebView 中读取验证数据
         self.webview.page().runJavaScript(
             "JSON.stringify(window.__feEtsVerificationData)",
             lambda result: self._process_verification_result(result)

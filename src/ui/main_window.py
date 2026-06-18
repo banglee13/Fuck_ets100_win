@@ -20,6 +20,7 @@ from core import (
     AnswerParser, HomeworkListResponse, HomeworkInfo
 )
 from ui.login_dialog import LoginDialog
+from ui.theme_manager import ThemeManager, Theme
 
 logger = logging.getLogger(__name__)
 
@@ -178,6 +179,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.auth_manager = AuthManager()
+        self.theme_mgr = ThemeManager()
         self.cache_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "cache")
         os.makedirs(self.cache_dir, exist_ok=True)
         
@@ -188,6 +190,10 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Fuck ETS100 - Windows 版本")
         self.setMinimumSize(1000, 700)
         self._init_ui()
+        
+        # 监听主题变化
+        self.theme_mgr.theme_changed.connect(self._on_theme_changed)
+        
         QTimer.singleShot(0, self._check_login)
 
     def _init_ui(self):
@@ -229,6 +235,13 @@ class MainWindow(QMainWindow):
         self.export_btn.clicked.connect(self._export_answers)
         toolbar.addWidget(self.export_btn)
 
+        toolbar.addSeparator()
+
+        self.theme_btn = QPushButton()
+        self._update_theme_btn_text()
+        self.theme_btn.clicked.connect(self._on_theme_btn_clicked)
+        toolbar.addWidget(self.theme_btn)
+
         # 中央部件
         central = QWidget()
         self.setCentralWidget(central)
@@ -242,10 +255,11 @@ class MainWindow(QMainWindow):
         left_panel = QWidget()
         left_panel.setProperty("card", "true")
         left_layout = QVBoxLayout(left_panel)
-        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setContentsMargins(12, 12, 12, 12)
+        left_layout.setSpacing(8)
 
         left_label = QLabel("作业列表")
-        left_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        left_label.setStyleSheet("font-size: 15px; font-weight: bold;")
 
         self.status_combo = QComboBox()
         self.status_combo.addItem("当前作业", "1")
@@ -290,10 +304,11 @@ class MainWindow(QMainWindow):
         right_panel = QWidget()
         right_panel.setProperty("card", "true")
         right_layout = QVBoxLayout(right_panel)
-        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setContentsMargins(12, 12, 12, 12)
+        right_layout.setSpacing(8)
 
         self.right_label = QLabel("请选择作业")
-        self.right_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        self.right_label.setStyleSheet("font-size: 15px; font-weight: bold;")
         right_layout.addWidget(self.right_label)
 
         self.answer_text = QTextEdit()
@@ -436,22 +451,37 @@ class MainWindow(QMainWindow):
         """显示答案"""
         self.right_label.setText(name)
         
-        # 注入美化用的 CSS
-        html = f"""
-        <style>
-            body {{ font-family: "Microsoft YaHei", sans-serif; color: #1F2937; line-height: 1.6; }}
-            h2 {{ color: #0B65D8; border-bottom: 2px solid #E5E7EB; padding-bottom: 8px; }}
-            h3 {{ color: #374151; margin-top: 24px; background-color: #F3F4F6; padding: 8px 12px; border-radius: 6px; }}
-            .question-card {{ background-color: #FFFFFF; border: 1px solid #E5E7EB; border-radius: 8px; padding: 16px; margin-bottom: 16px; }}
-            .question-title {{ font-weight: bold; font-size: 15px; margin-bottom: 8px; color: #111827; }}
-            ul {{ list-style-type: none; padding-left: 0; margin-top: 8px; }}
-            li {{ padding: 6px 8px; margin-bottom: 4px; border-radius: 4px; background-color: #F9FAFB; }}
-            .correct-option {{ color: #059669; font-weight: bold; background-color: #D1FAE5; }}
-            .answer-box {{ margin-top: 12px; padding: 10px; background-color: #EFF6FF; border-left: 4px solid #0B65D8; border-radius: 4px; }}
-            .answer-label {{ font-weight: bold; color: #1E3A8A; }}
-            hr {{ border: none; }}
-        </style>
-        """
+        is_dark = self.theme_mgr.is_dark
+        
+        if is_dark:
+            css = """
+                body { font-family: "Microsoft YaHei", sans-serif; color: #E5E1E7; line-height: 1.6; background-color: #1E2530; }
+                h2 { color: #0B65D8; border-bottom: 2px solid #494551; padding-bottom: 8px; }
+                h3 { color: #CBC4D2; margin-top: 24px; background-color: #1E2A3F; padding: 8px 12px; border-radius: 8px; }
+                .question-card { background-color: #1E2530; border: 1px solid #494551; border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+                .question-title { font-weight: bold; font-size: 15px; margin-bottom: 8px; color: #E5E1E7; }
+                ul { list-style-type: none; padding-left: 0; margin-top: 8px; }
+                li { padding: 6px 8px; margin-bottom: 4px; border-radius: 6px; background-color: #1E1E1E; }
+                .correct-option { color: #34D399; font-weight: bold; background-color: #064E3B; }
+                .answer-box { margin-top: 12px; padding: 10px; background-color: #1E2A3F; border-left: 4px solid #0B65D8; border-radius: 6px; }
+                .answer-label { font-weight: bold; color: #60A5FA; }
+                hr { border: none; }
+            """
+        else:
+            css = """
+                body { font-family: "Microsoft YaHei", sans-serif; color: #1E1E1E; line-height: 1.6; background-color: #FFFFFF; }
+                h2 { color: #0B65D8; border-bottom: 2px solid #E0E0E0; padding-bottom: 8px; }
+                h3 { color: #374151; margin-top: 24px; background-color: #F3F4F6; padding: 8px 12px; border-radius: 8px; }
+                .question-card { background-color: #FFFFFF; border: 1px solid #E0E0E0; border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+                .question-title { font-weight: bold; font-size: 15px; margin-bottom: 8px; color: #1E1E1E; }
+                ul { list-style-type: none; padding-left: 0; margin-top: 8px; }
+                li { padding: 6px 8px; margin-bottom: 4px; border-radius: 6px; background-color: #F8F9FA; }
+                .correct-option { color: #059669; font-weight: bold; background-color: #D1FAE5; }
+                .answer-box { margin-top: 12px; padding: 10px; background-color: #EFF6FF; border-left: 4px solid #0B65D8; border-radius: 6px; }
+                .answer-label { font-weight: bold; color: #0B65D8; }
+                hr { border: none; }
+            """
+        html = f"<style>{css}</style>"
         html += f"<h2>{name}</h2>"
         
         for section in sections:
@@ -516,6 +546,36 @@ class MainWindow(QMainWindow):
             self.answer_text.clear()
             self.right_label.setText("请选择作业")
             self._show_login_dialog()
+
+    def _update_theme_btn_text(self):
+        """更新主题按钮文字"""
+        pref = self.theme_mgr.get_preference()
+        if pref == Theme.SYSTEM:
+            self.theme_btn.setText("🌓 自动")
+        elif pref == Theme.DARK:
+            self.theme_btn.setText("🌙 暗色")
+        else:
+            self.theme_btn.setText("☀️ 亮色")
+
+    def _on_theme_btn_clicked(self):
+        """主题按钮点击 - 三态切换"""
+        pref = self.theme_mgr.get_preference()
+        if pref == Theme.SYSTEM:
+            self.theme_mgr.set_theme(Theme.DARK)
+        elif pref == Theme.DARK:
+            self.theme_mgr.set_theme(Theme.LIGHT)
+        else:
+            self.theme_mgr.set_theme(Theme.SYSTEM)
+        self._update_theme_btn_text()
+
+    def _on_theme_changed(self, theme: str):
+        """主题变化回调"""
+        self._update_theme_btn_text()
+        # 刷新答案显示（如果当前有显示的话）
+        for name, sections in self.current_homework_data.items():
+            if self.right_label.text() == name:
+                self._display_answers(name, sections)
+                break
 
     def _open_cache_dir(self):
         """打开缓存目录"""
