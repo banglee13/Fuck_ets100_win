@@ -3,6 +3,7 @@
 """
 
 import os
+import shutil
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QTreeWidget, QTreeWidgetItem,
@@ -215,6 +216,11 @@ class MainWindow(QMainWindow):
         self.open_cache_btn.setText("📁 缓存")
         self.open_cache_btn.clicked.connect(self._open_cache_dir)
         toolbar.addWidget(self.open_cache_btn)
+
+        # 清理缓存按钮（位于缓存按钮右侧）
+        self.clear_cache_btn = QPushButton("🧹 清理缓存")
+        self.clear_cache_btn.clicked.connect(self._clear_cache_dir)
+        toolbar.addWidget(self.clear_cache_btn)
 
         toolbar.addSeparator()
 
@@ -514,6 +520,33 @@ class MainWindow(QMainWindow):
     def _open_cache_dir(self):
         """打开缓存目录"""
         QDesktopServices.openUrl(QUrl.fromLocalFile(self.cache_dir))
+
+    def _clear_cache_dir(self):
+        """清理缓存目录内的所有内容（保留缓存根目录）"""
+        reply = QMessageBox.question(
+            self, "确认", "确定要清空缓存目录吗？此操作不可恢复。",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        try:
+            # 删除缓存目录下的所有文件和子目录
+            for name in os.listdir(self.cache_dir):
+                path = os.path.join(self.cache_dir, name)
+                if os.path.isfile(path) or os.path.islink(path):
+                    os.remove(path)
+                elif os.path.isdir(path):
+                    shutil.rmtree(path)
+
+            # 确保目录存在
+            os.makedirs(self.cache_dir, exist_ok=True)
+
+            self.statusBar.showMessage("缓存已清理")
+            QMessageBox.information(self, "完成", "缓存已成功清理")
+        except Exception as e:
+            logger.error(f"清理缓存失败: {e}")
+            QMessageBox.critical(self, "错误", f"清理缓存失败: {e}")
 
     def _export_answers(self):
         """导出答案"""

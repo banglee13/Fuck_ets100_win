@@ -133,6 +133,30 @@ class ETS100ApiClient:
         
         return self._post_request("/user/rebind-code", body_data)
 
+    def login_with_verification(
+        self, uid: str, captcha_result: str, device_code: str
+    ) -> Dict[str, Any]:
+        """使用验证凭证登录（畅言网页验证后的登录）"""
+        body_data = {
+            "r": "user/login-zt",
+            "params": {
+                "sn": "test",
+                "login": uid,
+                "user_id": uid,
+                "suc_user_token": captcha_result,
+                "device_code": device_code,
+                "device_name": "DESKTOP",
+                "suc_device_name": "Other",
+                "os_type": "windows",
+                "system": "4",
+                "global_client_version": "5.4.5",
+                "sign_response": 1,
+                "version": "3"
+            }
+        }
+        
+        return self._post_request("/user/login-zt", body_data)
+
     def get_ecard_list(self, token: str) -> Dict[str, Any]:
         """获取父账户列表"""
         body_data = {

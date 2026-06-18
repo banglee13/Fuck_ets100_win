@@ -12,6 +12,7 @@ from PyQt6.QtGui import QFont, QIcon
 import logging
 
 from core import ETS100ApiClient, AuthManager, EcardAccount
+from ui.verification_dialog_v2 import VerificationDialog
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,7 @@ class LoginWorker(QThread):
     login_success = pyqtSignal(dict)
     login_failed = pyqtSignal(str)
     login_progress = pyqtSignal(str, int)
+    verification_required = pyqtSignal()  # 需要验证时发出此信号
 
     def __init__(self, phone: str, password: str, device_code: str):
         super().__init__()
@@ -28,9 +30,19 @@ class LoginWorker(QThread):
         self.password = password
         self.device_code = device_code
         self.client = ETS100ApiClient()
+        self.verification_data = None  # 来自验证对话框的数据
+
+    def set_verification_data(self, verification_data):
+        """设置验证数据（从验证对话框获取）"""
+        self.verification_data = verification_data
 
     def run(self):
         try:
+            # 如果有验证数据，使用验证登录流程
+            if self.verification_data:
+                return self._login_with_verification()
+            
+            # 标准密码登录流程
             self.login_progress.emit("正在登录...", 20)
             
             resp = self.client.login(self.phone, self.password, self.device_code)
@@ -41,8 +53,14 @@ class LoginWorker(QThread):
                 resp = self.client.bind_device(self.phone, self.password, self.device_code)
                 code = resp.get("code", -1)
             
+            # 检测是否需要验证（根据错误消息）
             if code != 0 and code != -1:
                 msg = resp.get("msg", "登录失败")
+                # 检查是否是验证错误
+                if "验证" in msg or "尝试" in msg or "太多" in msg:
+                    self.verification_required.emit()
+                    self.login_failed.emit("需要完成身份验证")
+                    return
                 self.login_failed.emit(msg)
                 return
 
@@ -51,6 +69,46 @@ class LoginWorker(QThread):
                 self.login_failed.emit("未获取到 Token")
                 return
 
+            self._complete_login(token)
+
+        except Exception as e:
+            logger.error(f"登录异常: {e}")
+            self.login_failed.emit(f"登录异常: {str(e)}")
+
+    def _login_with_verification(self):
+        """使用验证凭证登录"""
+        try:
+            self.login_progress.emit("正在使用验证凭证登录...", 20)
+            
+            uid = self.verification_data.get("uid")
+            captcha_result = self.verification_data.get("captchaResult")
+            
+            if not uid or not captcha_result:
+                self.login_failed.emit("验证凭证不完整")
+                return
+            
+            resp = self.client.login_with_verification(uid, captcha_result, self.device_code)
+            code = resp.get("code", -1)
+            
+            if code != 0 and code != -1:
+                msg = resp.get("msg", "验证登录失败")
+                self.login_failed.emit(msg)
+                return
+            
+            token = resp.get("body", {}).get("token", "")
+            if not token:
+                self.login_failed.emit("未获取到 Token")
+                return
+            
+            self._complete_login(token)
+        
+        except Exception as e:
+            logger.error(f"验证登录异常: {e}")
+            self.login_failed.emit(f"验证登录异常: {str(e)}")
+
+    def _complete_login(self, token: str):
+        """完成登录流程：获取账户信息"""
+        try:
             self.login_progress.emit("获取账户信息...", 60)
             
             ecard_resp = self.client.get_ecard_list(token)
@@ -84,10 +142,10 @@ class LoginWorker(QThread):
             }
             
             self.login_success.emit(result)
-
+        
         except Exception as e:
-            logger.error(f"登录异常: {e}")
-            self.login_failed.emit(f"登录异常: {str(e)}")
+            logger.error(f"获取账户信息异常: {e}")
+            self.login_failed.emit(f"获取账户信息失败: {str(e)}")
 
 
 class LoginDialog(QDialog):
@@ -189,6 +247,41 @@ class LoginDialog(QDialog):
         self.status_label.setText("")
 
         self.worker = LoginWorker(phone, password, device_code)
+        self.worker.login_success.connect(self._on_login_success)
+        self.worker.login_failed.connect(self._on_login_failed)
+        self.worker.login_progress.connect(self._on_login_progress)
+        self.worker.verification_required.connect(self._on_verification_required)
+        self.worker.start()
+
+    def _on_verification_required(self):
+        """需要身份验证"""
+        self.login_btn.setEnabled(True)
+        self.progress_bar.setVisible(False)
+        
+        # 显示验证对话框
+        verification_dialog = VerificationDialog(self)
+        if verification_dialog.exec() == QDialog.DialogCode.Accepted:
+            verification_data = verification_dialog.get_verification_data()
+            if verification_data:
+                # 用验证凭证重新登录
+                self._login_with_verification(verification_data)
+            else:
+                QMessageBox.warning(self, "错误", "未获取到验证凭证")
+        else:
+            # 用户取消验证
+            self.status_label.setText("已取消验证")
+
+    def _login_with_verification(self, verification_data: dict):
+        """使用验证凭证重新登录"""
+        device_code = self.auth_manager.get_device_code()
+        
+        self.login_btn.setEnabled(False)
+        self.progress_bar.setVisible(True)
+        self.status_label.setText("")
+        
+        # 创建新的 worker，设置验证数据
+        self.worker = LoginWorker(self.phone_input.text().strip(), self.password_input.text().strip(), device_code)
+        self.worker.set_verification_data(verification_data)
         self.worker.login_success.connect(self._on_login_success)
         self.worker.login_failed.connect(self._on_login_failed)
         self.worker.login_progress.connect(self._on_login_progress)
