@@ -5,7 +5,6 @@
 
 import json
 import logging
-import time
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QPushButton, QMessageBox
 )
@@ -13,6 +12,11 @@ from PyQt6.QtCore import Qt, QUrl, QTimer
 from PyQt6.QtGui import QFont
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEngineSettings, QWebEngineScript
+
+MOBILE_USER_AGENT = (
+    "Mozilla/5.0 (Linux; Android 16; PLC110 Build/BP2A.250605.015) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.7778.120 Mobile Safari/537.36"
+)
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +53,7 @@ class VerificationDialog(QDialog):
         self.webview = QWebEngineView()
         
         # 配置 WebView
+        self.webview.page().profile().setHttpUserAgent(MOBILE_USER_AGENT)
         settings = self.webview.settings()
         settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptEnabled, True)
         settings.setAttribute(QWebEngineSettings.WebAttribute.LocalStorageEnabled, True)
@@ -90,74 +95,63 @@ class VerificationDialog(QDialog):
         (function() {
             if (window.__feEtsVerificationInstalled) return;
             window.__feEtsVerificationInstalled = true;
-            
-            // 存储验证数据到全局变量，供 Python 查询
             window.__feEtsVerificationData = null;
-            
-            // 拦截 jQuery AJAX
-            if (window.$) {
-                $(document).ajaxComplete(function(event, xhr, settings) {
-                    if (!settings || !settings.url) return;
-                    
-                    // 监听 checkLogin 响应
-                    if (settings.url.indexOf('/login/checkLogin') !== -1) {
-                        try {
-                            var data = JSON.parse(xhr.responseText || '{}');
-                            if (data.Code === 0 && data.Data) {
-                                var dataObj = data.Data;
-                                if (typeof dataObj === 'string') {
-                                    dataObj = JSON.parse(dataObj);
-                                }
-                                
-                                if (dataObj.uid && dataObj.captchaResult) {
-                                    // 保存验证数据
-                                    window.__feEtsVerificationData = {
-                                        uid: dataObj.uid,
-                                        captchaResult: dataObj.captchaResult
-                                    };
-                                    console.log('验证成功，已保存凭证');
-                                }
-                            }
-                        } catch(e) {
-                            console.error('checkLogin 解析失败:', e);
-                        }
-                    }
-                });
-            }
-            
-            // 备选：拦截 fetch
-            if (window.fetch) {
-                var originalFetch = window.fetch;
-                window.fetch = function(...args) {
-                    return originalFetch.apply(this, args).then(function(response) {
-                        var url = args[0];
-                        if (typeof url === 'string' && url.indexOf('/login/checkLogin') !== -1) {
-                            var cloned = response.clone();
-                            cloned.text().then(function(text) {
-                                try {
-                                    var data = JSON.parse(text);
-                                    if (data.Code === 0 && data.Data) {
-                                        var dataObj = data.Data;
-                                        if (typeof dataObj === 'string') {
-                                            dataObj = JSON.parse(dataObj);
-                                        }
-                                        if (dataObj.uid && dataObj.captchaResult) {
-                                            window.__feEtsVerificationData = {
-                                                uid: dataObj.uid,
-                                                captchaResult: dataObj.captchaResult
-                                            };
-                                            console.log('Fetch 验证成功');
-                                        }
-                                    }
-                                } catch(e) {
-                                    console.error('checkLogin fetch 解析失败:', e);
-                                }
-                            });
-                        }
-                        return response;
+
+            function tryInstallCapture() {
+                if (window.__feEtsVerificationCaptureInstalled) return;
+                if (window.$) {
+                    window.__feEtsVerificationCaptureInstalled = true;
+                    $(document).ajaxComplete(function(event, xhr, settings) {
+                        if (!settings || !settings.url) return;
+                        if (settings.url.indexOf('/login/checkLogin') === -1) return;
+                        captureCheckLoginResponse(xhr.responseText);
                     });
-                };
+                }
+                if (window.fetch && !window.__feEtsVerificationFetchInstalled) {
+                    window.__feEtsVerificationFetchInstalled = true;
+                    var originalFetch = window.fetch;
+                    window.fetch = function(...args) {
+                        return originalFetch.apply(this, args).then(function(response) {
+                            var url = args[0];
+                            if (typeof url === 'string' && url.indexOf('/login/checkLogin') !== -1) {
+                                var cloned = response.clone();
+                                cloned.text().then(function(text) {
+                                    captureCheckLoginResponse(text);
+                                });
+                            }
+                            return response;
+                        });
+                    };
+                }
             }
+
+            function captureCheckLoginResponse(text) {
+                try {
+                    var data = JSON.parse(text || '{}');
+                    if (data.Code !== 0 || !data.Data) return;
+                    var dataObj = data.Data;
+                    if (typeof dataObj === 'string') {
+                        dataObj = JSON.parse(dataObj);
+                    }
+                    if (dataObj.uid && dataObj.captchaResult) {
+                        window.__feEtsVerificationData = {
+                            uid: dataObj.uid,
+                            captchaResult: dataObj.captchaResult
+                        };
+                        console.log('验证成功，已保存凭证');
+                    }
+                } catch (e) {
+                    console.error('checkLogin 解析失败:', e);
+                }
+            }
+
+            tryInstallCapture();
+            var installTimer = window.setInterval(function() {
+                tryInstallCapture();
+                if (window.__feEtsVerificationCaptureInstalled) {
+                    window.clearInterval(installTimer);
+                }
+            }, 500);
         })();
         """
         

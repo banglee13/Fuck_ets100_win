@@ -58,8 +58,8 @@ class LoginWorker(QThread):
                 msg = resp.get("msg", "登录失败")
                 # 检查是否是验证错误
                 if "验证" in msg or "尝试" in msg or "太多" in msg:
+                    self.login_progress.emit("需要完成身份验证，请在弹出窗口完成验证", 30)
                     self.verification_required.emit()
-                    self.login_failed.emit("需要完成身份验证")
                     return
                 self.login_failed.emit(msg)
                 return
