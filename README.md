@@ -36,6 +36,48 @@ python run.py
 #### 方式 2：使用批处理脚本
 双击 `run.bat`
 
+## 开发与构建
+
+### 开发环境搭建
+
+```bash
+# 克隆项目
+git clone https://github.com/banglee13/Fuck_ets100_win.git
+cd Fuck_ets100_win
+
+# 创建虚拟环境（推荐）
+python -m venv venv
+venv\Scripts\activate
+
+# 安装依赖
+pip install -r requirements.txt
+```
+
+### 开发模式运行
+
+```bash
+# 方式 1：使用 main.py
+python main.py
+
+# 方式 2：使用 run.py（自动检查依赖）
+python run.py
+```
+
+### 打包构建
+
+```bash
+# 安装打包工具
+pip install pyinstaller pillow
+
+# 方式 1：运行打包脚本（推荐）
+build.bat
+
+# 方式 2：手动打包
+pyinstaller --onefile --windowed --name "FuckETS100" --icon="logo.ico" --add-data "src;src" --hidden-import=requests --hidden-import=pyzipper --hidden-import=dotenv.main --hidden-import=PyQt6.QtWebEngineWidgets --hidden-import=PyQt6.QtWebEngineCore main.py
+```
+
+打包完成后，exe 文件位于 `dist/FuckETS100.exe`
+
 ## 使用说明
 
 1. **启动程序**：启动应用
@@ -47,28 +89,36 @@ python run.py
 ## 项目结构
 
 ```
-Fuck_ets_win/
+Fuck_ets100_win/
 ├── src/
 │   ├── core/              # 核心模块
+│   │   ├── __init__.py
 │   │   ├── api_client.py  # API 客户端
-│   │   ├── zip_utils.py   # ZIP 工具
-│   │   ├── answer_parser.py # 答案解析
 │   │   ├── auth_manager.py # 认证管理
-│   │   └── __init__.py
+│   │   ├── answer_parser.py # 答案解析
+│   │   └── zip_utils.py   # ZIP 工具
 │   ├── ui/                # UI 模块
+│   │   ├── __init__.py
 │   │   ├── login_dialog.py # 登录对话框
 │   │   ├── main_window.py  # 主窗口
-│   │   └── __init__.py
+│   │   ├── styles.py       # 样式定义
+│   │   ├── theme_manager.py # 主题管理
+│   │   ├── verification_dialog.py # 验证码对话框
+│   │   └── verification_dialog_v2.py # 验证码对话框 v2
 │   └── __init__.py
-├── cache/                 # 缓存目录
 ├── docs/                  # 文档
-├── assets/                # 资源文件
-├── run.py                 # 推荐启动器（自动安装依赖）
+│   └── 使用说明.md
 ├── main.py                # 主程序入口
-├── 启动.bat              # Windows 批处理启动
-├── 启动.ps1              # PowerShell 启动脚本
+├── run.py                 # 推荐启动器（自动安装依赖）
+├── run.bat                # Windows 批处理启动
+├── build.bat              # 打包脚本
 ├── requirements.txt       # 依赖列表
-└── README.md
+├── logo.png               # 应用图标（PNG）
+├── logo.ico               # 应用图标（ICO）
+├── README.md              # 项目说明
+├── 快速入门.md            # 快速入门指南
+├── FuckETS100.spec        # PyInstaller 打包配置
+└── LICENSE                # 许可证
 ```
 
 ## 注意事项
