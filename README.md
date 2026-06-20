@@ -1,5 +1,7 @@
 # Fuck ETS100 - Windows 版本
 
+![logo](https://github.com/banglee13/Fuck_ets100_win/blob/main/logo.png?raw=true)
+
 感谢 https://github.com/laststudio/Fuck_ets100 提供的原始代码，AI 根据原始代码改的。
 
 专门为 ETS100 (e听说) 用户打造的答案提取工具 - Windows 桌面版本
