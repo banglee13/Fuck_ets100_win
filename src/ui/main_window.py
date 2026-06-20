@@ -286,8 +286,7 @@ class MainWindow(QMainWindow):
         self.homework_tree = QTreeWidget()
         self.homework_tree.setHeaderLabels(["作业名称"])
         self.homework_tree.itemClicked.connect(self._on_homework_clicked)
-        # 更友好的交互体验
-        self.homework_tree.setAlternatingRowColors(True)
+        self.homework_tree.setAlternatingRowColors(False)
         self.homework_tree.setIndentation(12)
         left_layout.addWidget(self.homework_tree)
 

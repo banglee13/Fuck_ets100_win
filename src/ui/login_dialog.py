@@ -2,6 +2,7 @@
 登录对话框
 """
 
+import os
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
     QLineEdit, QPushButton, QMessageBox, QGroupBox,
@@ -158,6 +159,11 @@ class LoginDialog(QDialog):
         self.theme_mgr = ThemeManager()
         self.setWindowTitle("登录 - Fuck ETS100")
         self.setMinimumSize(420, 380)
+        
+        icon_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "logo.ico")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+        
         self._init_ui()
         self._load_saved_info()
 

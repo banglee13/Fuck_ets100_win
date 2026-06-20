@@ -5,9 +5,16 @@ Fuck ETS100 - Windows 版本
 
 import sys
 import os
+import ctypes
+
+# Windows 任务栏图标修复：设置 AppUserModelID
+if sys.platform == 'win32':
+    myappid = 'FuckETS100.app.1'
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QIcon
 import logging
 
 # 配置日志
@@ -30,6 +37,11 @@ def main():
     app.setApplicationName("Fuck ETS100")
     app.setOrganizationName("FuckETS100")
     app.setApplicationVersion("1.0.0")
+    
+    # 设置应用图标
+    icon_path = os.path.join(os.path.dirname(__file__), "logo.ico")
+    if os.path.exists(icon_path):
+        app.setWindowIcon(QIcon(icon_path))
     
     # 设置默认字体
     font = QFont("Microsoft YaHei", 10)
