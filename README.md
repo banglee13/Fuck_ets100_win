@@ -1,6 +1,6 @@
 # Fuck ETS100 - Windows 版本
 
-![logo](https://github.com/banglee13/Fuck_ets100_win/blob/main/logo.png?raw=true)
+<img src="https://github.com/banglee13/Fuck_ets100_win/blob/main/logo.png?raw=true" width="300">
 
 感谢 https://github.com/laststudio/Fuck_ets100 提供的原始代码，AI 根据原始代码改的。
 
